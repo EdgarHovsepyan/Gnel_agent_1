@@ -1,0 +1,130 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: organizations
+    // Fields: id, name, settings, plan, createdAt
+    //
+    // Collection: users
+    // Fields: id, email, role, organizationId, permissions, status, createdAt
+    //
+    // Collection: audit_logs
+    // Fields: id, userId, organizationId, action, metadata, timestamp
+    //
+    // Collection: feature_flags
+    // Fields: id, name, enabled, organizationId, metadata
+    //
+    // Collection: leads
+    // Fields: id, organizationId, firstName, lastName, email, phone, source, stage, temperature, score, assignedTo, tags, metadata, createdAt, updatedAt, lastActivityAt
+    //
+    // Collection: lead_activities
+    // Fields: id, leadId, organizationId, userId, type, description, metadata, timestamp
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isOrgMember(orgId) {
+      return isAuthenticated() && getUserData().organizationId == orgId;
+    }
+
+    function isOrgAdmin(orgId) {
+      return isOrgMember(orgId) && getUserData().role == 'admin';
+    }
+
+    function isSystemAdmin() {
+      return isAuthenticated() && 
+        (getUserData().role == 'system_admin' || 
+         (request.auth.token.email == "vizualninjadev1@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidOrganization(data) {
+      return data.keys().hasAll(['id', 'name', 'plan', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.plan in ['free', 'pro', 'enterprise'];
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'email', 'role', 'organizationId', 'status', 'createdAt']) &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
+             data.role in ['admin', 'manager', 'user', 'system_admin'] &&
+             data.status in ['active', 'inactive', 'pending'];
+    }
+
+    function isValidLead(data) {
+      return data.keys().hasAll(['id', 'organizationId', 'firstName', 'lastName', 'source', 'stage', 'temperature', 'score', 'createdAt', 'updatedAt', 'lastActivityAt']) &&
+             data.firstName is string && data.firstName.size() > 0 && data.firstName.size() < 100 &&
+             data.lastName is string && data.lastName.size() > 0 && data.lastName.size() < 100 &&
+             data.source in ['instagram', 'facebook', 'whatsapp', 'web', 'referral', 'other'] &&
+             data.stage in ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'closed_won', 'closed_lost'] &&
+             data.temperature in ['cold', 'warm', 'hot'] &&
+             data.score is number && data.score >= 0 && data.score <= 100;
+    }
+
+    function isValidLeadActivity(data) {
+      return data.keys().hasAll(['id', 'leadId', 'organizationId', 'type', 'description', 'timestamp']) &&
+             data.type in ['note', 'call', 'email', 'meeting', 'stage_change', 'assignment', 'ai_analysis', 'system'] &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 5000;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /organizations/{orgId} {
+      allow read: if isOrgMember(orgId) || isSystemAdmin();
+      allow create: if isSystemAdmin();
+      allow update: if isOrgAdmin(orgId) || isSystemAdmin();
+      allow delete: if isSystemAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isOrgAdmin(getUserData().organizationId) || isSystemAdmin());
+      allow create: if isSystemAdmin() || (isAuthenticated() && isOrgAdmin(request.resource.data.organizationId));
+      allow update: if isAuthenticated() && (
+        (request.auth.uid == userId && request.resource.data.role == resource.data.role) || 
+        isOrgAdmin(resource.data.organizationId) || 
+        isSystemAdmin()
+      );
+      allow delete: if isSystemAdmin();
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if isOrgAdmin(resource.data.organizationId) || isSystemAdmin();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false; // Append-only
+    }
+
+    match /feature_flags/{flagId} {
+      allow read: if isOrgMember(resource.data.organizationId) || isSystemAdmin();
+      allow write: if isSystemAdmin();
+    }
+
+    match /leads/{leadId} {
+      allow read: if isOrgMember(resource.data.organizationId) || isSystemAdmin();
+      allow create: if isOrgMember(request.resource.data.organizationId) && isValidLead(request.resource.data);
+      allow update: if isOrgMember(resource.data.organizationId) && isValidLead(request.resource.data);
+      allow delete: if isOrgAdmin(resource.data.organizationId) || isSystemAdmin();
+    }
+
+    match /lead_activities/{activityId} {
+      allow read: if isOrgMember(resource.data.organizationId) || isSystemAdmin();
+      allow create: if isOrgMember(request.resource.data.organizationId) && isValidLeadActivity(request.resource.data);
+      allow update, delete: if false; // Append-only
+    }
+  }
+}

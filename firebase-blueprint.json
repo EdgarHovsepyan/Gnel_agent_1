@@ -1,0 +1,125 @@
+{
+  "entities": {
+    "Organization": {
+      "title": "Organization",
+      "description": "Represents a tenant in the multi-tenant system.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "settings": { "type": "object" },
+        "plan": { "type": "string", "enum": ["free", "pro", "enterprise"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "plan", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Represents a user within an organization.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "manager", "user"] },
+        "organizationId": { "type": "string" },
+        "permissions": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string", "enum": ["active", "inactive", "pending"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "role", "organizationId", "status", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Tracks system actions for auditing.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "action": { "type": "string" },
+        "metadata": { "type": "object" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "organizationId", "action", "timestamp"]
+    },
+    "FeatureFlag": {
+      "title": "FeatureFlag",
+      "description": "Controls feature availability per organization.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "organizationId": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "required": ["id", "name", "enabled", "organizationId"]
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "Represents a potential customer or business opportunity.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "source": { "type": "string", "enum": ["instagram", "facebook", "whatsapp", "web", "referral", "other"] },
+        "stage": { "type": "string", "enum": ["new", "contacted", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"] },
+        "temperature": { "type": "string", "enum": ["cold", "warm", "hot"] },
+        "score": { "type": "integer" },
+        "assignedTo": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "metadata": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "lastActivityAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "firstName", "lastName", "source", "stage", "temperature", "score", "createdAt", "updatedAt", "lastActivityAt"]
+    },
+    "LeadActivity": {
+      "title": "LeadActivity",
+      "description": "Records an interaction or event related to a lead.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "leadId": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["note", "call", "email", "meeting", "stage_change", "assignment", "ai_analysis", "system"] },
+        "description": { "type": "string" },
+        "metadata": { "type": "object" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "leadId", "organizationId", "type", "description", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/organizations/{orgId}": {
+      "schema": "Organization",
+      "description": "Root collection for organizations."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Root collection for users, linked to organizations."
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "System-wide audit logs."
+    },
+    "/feature_flags/{flagId}": {
+      "schema": "FeatureFlag",
+      "description": "Feature flags for organizations."
+    },
+    "/leads/{leadId}": {
+      "schema": "Lead",
+      "description": "Collection of leads per organization."
+    },
+    "/lead_activities/{activityId}": {
+      "schema": "LeadActivity",
+      "description": "Timeline of activities for leads."
+    }
+  }
+}
